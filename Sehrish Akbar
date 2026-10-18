@@ -1,0 +1,6 @@
+import streamlit as st
+
+st.title("hello chai app")
+st.subheader("Brewed with streamlit")
+st.text("welcome to your interative app")
+st.write("choose your fav. variety of chai")
