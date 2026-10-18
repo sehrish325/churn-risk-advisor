@@ -1169,3 +1169,358 @@ validation_table.to_csv(
 
 print("\nValidation comparison saved successfully.")
 print("All visualizations generated.")
+
+
+
+
+
+
+
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import glob
+import os
+
+sns.set_theme(style="whitegrid")
+plt.rcParams["figure.figsize"] = (8, 5)
+
+print("Libraries imported successfully!")
+
+files = glob.glob(
+    "/kaggle/input/**/WA_Fn-UseC_-Telco-Customer-Churn.csv",
+    recursive=True
+)
+
+if not files:
+    raise FileNotFoundError(
+        "Dataset nahi mili. Kaggle ke Add Input option se dataset add karein."
+    )
+
+DATA_PATH = files[0]
+df = pd.read_csv(DATA_PATH)
+
+print("Dataset shape:", df.shape)
+display(df.head(10))
+
+print("Column names:")
+print(df.columns.tolist())
+
+print("\nDataset information:")
+df.info()
+
+print("\nMissing values:")
+display(df.isnull().sum().sort_values(ascending=False))
+
+print("\nDuplicate rows:", df.duplicated().sum())
+
+print("\nStatistical summary:")
+display(df.describe(include="all").T)
+
+
+data = df.copy()
+
+# Remove customer identifier
+data.drop(columns=["customerID"], inplace=True, errors="ignore")
+
+# Convert TotalCharges to numeric
+data["TotalCharges"] = pd.to_numeric(
+    data["TotalCharges"],
+    errors="coerce"
+)
+
+# Convert target labels
+data["Churn"] = data["Churn"].map({"No": 0, "Yes": 1})
+
+print("Dataset shape after cleaning:", data.shape)
+print("\nMissing values after cleaning:")
+display(data.isnull().sum()[data.isnull().sum() > 0])
+
+print("\nChurn values:")
+print(data["Churn"].value_counts(dropna=False))
+
+plt.figure(figsize=(7, 5))
+
+ax = sns.countplot(
+    data=data,
+    x="Churn",
+    hue="Churn",
+    palette="Set2",
+    legend=False
+)
+
+ax.set_xticks([0, 1], ["Stayed (0)", "Churned (1)"])
+plt.title("Customer Churn Distribution")
+plt.xlabel("Customer Status")
+plt.ylabel("Number of Customers")
+
+for container in ax.containers:
+    ax.bar_label(container)
+
+plt.tight_layout()
+plt.show()
+
+print("Churn percentage:")
+display((data["Churn"].value_counts(normalize=True) * 100).round(2))
+
+
+contract_churn = pd.crosstab(
+    data["Contract"],
+    data["Churn"],
+    normalize="index"
+) * 100
+
+contract_churn = contract_churn.rename(
+    columns={0: "Stayed (%)", 1: "Churned (%)"}
+)
+
+display(contract_churn.round(2))
+
+contract_churn.plot(
+    kind="bar",
+    stacked=True,
+    figsize=(9, 5),
+    colormap="Set2"
+)
+
+plt.title("Churn Rate by Contract Type")
+plt.xlabel("Contract Type")
+plt.ylabel("Percentage of Customers")
+plt.legend(title="Customer Status")
+plt.xticks(rotation=0)
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(9, 5))
+
+sns.histplot(
+    data=data,
+    x="tenure",
+    hue="Churn",
+    bins=30,
+    kde=True,
+    element="step",
+    stat="density",
+    common_norm=False
+)
+
+plt.title("Customer Tenure Distribution by Churn")
+plt.xlabel("Tenure (Months)")
+plt.ylabel("Density")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+
+sns.boxplot(
+    data=data,
+    x="Churn",
+    y="MonthlyCharges",
+    hue="Churn",
+    palette="Set3",
+    legend=False
+)
+
+plt.xticks([0, 1], ["Stayed", "Churned"])
+plt.title("Monthly Charges by Churn Status")
+plt.xlabel("Customer Status")
+plt.ylabel("Monthly Charges")
+plt.tight_layout()
+plt.show()
+
+
+categorical_cols = data.select_dtypes(
+    include=["object", "category"]
+).columns.tolist()
+
+for col in categorical_cols:
+    churn_rate = (
+        data.groupby(col, dropna=False)["Churn"]
+        .mean()
+        .mul(100)
+        .sort_values(ascending=False)
+    )
+
+    print(f"\nChurn rate by {col}:")
+    display(churn_rate.round(2))
+
+# Save the cleaned data for later weeks
+data.to_csv("telco_churn_cleaned.csv", index=False)
+
+# Save the EDA summary
+eda_summary = pd.DataFrame({
+    "Metric": [
+        "Total customers",
+        "Total features after removing customerID",
+        "Missing values",
+        "Duplicate rows",
+        "Churned customers",
+        "Customers who stayed"
+    ],
+    "Value": [
+        len(data),
+        data.shape[1],
+        int(data.isnull().sum().sum()),
+        int(data.duplicated().sum()),
+        int((data["Churn"] == 1).sum()),
+        int((data["Churn"] == 0).sum())
+    ]
+})
+
+display(eda_summary)
+eda_summary.to_csv("week1_eda_summary.csv", index=False)
+
+print("Week 1 files saved successfully!")
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_theme(style="whitegrid")
+
+# Use cleaned dataset created in Week 1
+# If data is not available, load the saved CSV
+if "data" not in globals():
+    data = pd.read_csv("telco_churn_cleaned.csv")
+
+# Create one figure containing all EDA plots
+fig, axes = plt.subplots(3, 2, figsize=(17, 19))
+fig.suptitle(
+    "WEEK 1: CUSTOMER CHURN — EXPLORATORY DATA ANALYSIS",
+    fontsize=19,
+    fontweight="bold",
+    y=0.99
+)
+
+# 1. Churn distribution
+churn_counts = data["Churn"].map({
+    0: "Stayed",
+    1: "Churned"
+}).value_counts()
+
+axes[0, 0].pie(
+    churn_counts,
+    labels=churn_counts.index,
+    autopct="%1.1f%%",
+    startangle=90
+)
+axes[0, 0].set_title("1. Customer Churn Distribution")
+
+# 2. Missing values
+missing = data.isnull().sum()
+missing = missing[missing > 0].sort_values(ascending=False)
+
+if len(missing) > 0:
+    sns.barplot(
+        x=missing.values,
+        y=missing.index,
+        ax=axes[0, 1],
+        color="steelblue"
+    )
+    axes[0, 1].set_title("2. Missing Values by Feature")
+    axes[0, 1].set_xlabel("Number of Missing Values")
+else:
+    axes[0, 1].text(
+        0.5, 0.5, "No missing values",
+        ha="center", va="center", fontsize=14
+    )
+    axes[0, 1].set_title("2. Missing Values")
+    axes[0, 1].set_axis_off()
+
+# 3. Contract type vs churn rate
+contract_rate = (
+    data.groupby("Contract", observed=False)["Churn"]
+    .mean()
+    .mul(100)
+    .sort_values(ascending=False)
+)
+
+sns.barplot(
+    x=contract_rate.index,
+    y=contract_rate.values,
+    ax=axes[1, 0],
+    color="teal"
+)
+axes[1, 0].set_title("3. Churn Rate by Contract Type")
+axes[1, 0].set_xlabel("Contract")
+axes[1, 0].set_ylabel("Churn Rate (%)")
+axes[1, 0].tick_params(axis="x", rotation=15)
+
+# 4. Tenure distribution by churn
+sns.histplot(
+    data=data,
+    x="tenure",
+    hue="Churn",
+    bins=25,
+    element="step",
+    stat="density",
+    common_norm=False,
+    ax=axes[1, 1]
+)
+axes[1, 1].set_title("4. Tenure Distribution by Churn")
+axes[1, 1].set_xlabel("Tenure (Months)")
+axes[1, 1].set_ylabel("Density")
+
+# 5. Monthly charges by churn
+sns.boxplot(
+    data=data,
+    x="Churn",
+    y="MonthlyCharges",
+    hue="Churn",
+    legend=False,
+    ax=axes[2, 0]
+)
+axes[2, 0].set_xticks([0, 1], ["Stayed", "Churned"])
+axes[2, 0].set_title("5. Monthly Charges by Churn")
+axes[2, 0].set_xlabel("Customer Status")
+axes[2, 0].set_ylabel("Monthly Charges")
+
+# 6. Churn rates across categorical features
+cat_cols = [
+    col for col in data.select_dtypes(include="object").columns
+    if data[col].nunique(dropna=False) <= 10
+]
+
+if cat_cols:
+    rates = pd.DataFrame({
+        col: data.groupby(col, dropna=False)["Churn"].mean() * 100
+        for col in cat_cols
+    })
+
+    # Average category churn rates for each feature
+    feature_rates = rates.mean(axis=0).sort_values(ascending=False)
+
+    sns.barplot(
+        x=feature_rates.values,
+        y=feature_rates.index,
+        ax=axes[2, 1],
+        color="coral"
+    )
+    axes[2, 1].set_title("6. Average Churn Rate by Categorical Feature")
+    axes[2, 1].set_xlabel("Average Category Churn Rate (%)")
+    axes[2, 1].set_ylabel("Feature")
+else:
+    axes[2, 1].text(
+        0.5, 0.5, "No suitable categorical features found",
+        ha="center", va="center"
+    )
+    axes[2, 1].set_axis_off()
+
+plt.tight_layout(rect=[0, 0, 1, 0.97])
+
+# Save the complete dashboard as one image
+plt.savefig(
+    "week1_complete_eda_dashboard.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+print("Week 1 EDA dashboard saved successfully!")
+print("File: week1_complete_eda_dashboard.png")
+
